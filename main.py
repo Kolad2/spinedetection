@@ -1,21 +1,41 @@
 import cv2
 import torch
 import matplotlib.pyplot as plt
+from pathlib import Path
 import numpy as np
 from rvm import HumanMatter
 
 
 def main():
-    image_path = r"D:\Data\humanspine\dataset\5\5_3.jpeg"
+    folder_images = Path(r"D:\Data\humanspine\dataset")
     checkpoint_path = r"./rvm/model_checkpoint/rvm_resnet50.pth"
-    run_rvm(image_path, checkpoint_path)
+
+    matter = HumanMatter(checkpoint_path, "cuda", threshold=0.75)
+
+    for person_folder in sorted(folder_images.iterdir()):
+        if not person_folder.is_dir():
+            continue
+
+        # Например: папка 5 -> файл 5_3.jpeg
+        image_path = person_folder / f"{person_folder.name}_3.jpeg"
+
+        if not image_path.exists():
+            print(f"Файл не найден: {image_path}")
+            continue
+
+        print(f"Обработка: {image_path}")
+
+        try:
+            run_rvm(str(image_path), matter)
+        except Exception as error:
+            print(f"Ошибка при обработке {image_path}: {error}")
 
 
-def run_rvm(image_path: str, checkpoint_path: str, backbone: str = "resnet50"):
+def run_rvm(image_path: str, matter: HumanMatter):
     # Загружаем изображение
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    matter = HumanMatter(checkpoint_path, "cuda")
+    height, width = image.shape[:2]
 
     scale = 0.25
 
@@ -29,30 +49,70 @@ def run_rvm(image_path: str, checkpoint_path: str, backbone: str = "resnet50"):
 
     mask = matter(image_resized)
 
-    # заполнение дыр внутри контура
-    contours, _ = cv2.findContours(
-        mask,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
-    )
+    mask, bbox = mask_correction(mask, copy=False)
 
-    cv2.drawContours(
-        mask,
-        contours,
-        -1,
-        255,
-        thickness=cv2.FILLED
-    )
+    print(bbox)
 
     mask = cv2.resize(
         mask,
-        None,
-        fx=4,
-        fy=4,
-        interpolation=cv2.INTER_NEAREST
+        (width, height),
+        interpolation=cv2.INTER_NEAREST,
     )
 
-    image[mask==0] = (0,0,0)
+    testmask(image, mask)
+
+def mask_correction(
+    mask: np.ndarray,
+    copy: bool = False,
+) ->  tuple[np.ndarray, tuple]:
+    """
+    Оставляет только самый большой связный объект и заполняет его значением 255.
+
+    Если copy=False, исходный массив изменяется на месте.
+    Если copy=True, возвращается обработанная копия.
+    """
+    if mask.dtype != np.uint8:
+        raise TypeError(f"Ожидался uint8, получен {mask.dtype}")
+
+    if mask.ndim != 2:
+        raise ValueError(
+            f"Ожидалась одноканальная маска HxW, получена форма {mask.shape}"
+        )
+
+    mask = mask.copy() if copy else mask
+
+    contours, _ = cv2.findContours(
+        mask,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE,
+    )
+
+    if not contours:
+        return mask
+
+    # Удаляем все объекты
+    mask.fill(0)
+
+
+
+    largest_contour = max(contours, key=cv2.contourArea)
+
+    # Рисуем только самый большой объект без дыр
+    cv2.drawContours(
+        mask,
+        [largest_contour],
+        contourIdx=-1,
+        color=255,
+        thickness=cv2.FILLED,
+    )
+
+    bbox = cv2.boundingRect(largest_contour)
+
+    return mask, bbox
+
+
+def testmask(image, mask):
+    image[mask == 0] = (0, 0, 0)
 
     plt.figure(figsize=(10, 5))
 
@@ -75,7 +135,6 @@ def run_rvm(image_path: str, checkpoint_path: str, backbone: str = "resnet50"):
     )
 
     plt.show()
-
 
 if __name__ == "__main__":
     main()
