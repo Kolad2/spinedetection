@@ -1,3 +1,6 @@
+rvm/model_checkpoint/*
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
