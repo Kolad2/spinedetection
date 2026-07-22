@@ -9,6 +9,7 @@ from .shape_save import shape_polygon_save
 def mask_save(
     path: Path,
     mask: np.ndarray,
+    replace = False,
 ) -> None:
     if mask.ndim != 2:
         raise ValueError(
@@ -42,4 +43,5 @@ def mask_save(
     shape_polygon_save(
         path,
         polygons,
+        replace = replace,
     )

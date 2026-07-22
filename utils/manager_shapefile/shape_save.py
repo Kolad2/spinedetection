@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 import numpy as np
 import shapefile
 
@@ -22,6 +23,7 @@ def shape_polyline_save(
 def shape_polygon_save(
 	path: Path,
 	polygons: list[np.ndarray],
+	replace: bool = False,
 ) -> None:
 	path = Path(path)
 
@@ -38,9 +40,45 @@ def shape_polygon_save(
 		)
 		path = path / f"{path.name}.shp"
 
+	# Shapefile состоит из нескольких файлов с одинаковым именем.
+	shapefile_extensions = (
+		".shp",
+		".shx",
+		".dbf",
+		".prj",
+		".cpg",
+		".qix",
+		".sbn",
+		".sbx",
+	)
+
+	shapefile_paths = [
+		path.with_suffix(extension)
+		for extension in shapefile_extensions
+	]
+
+	existing_paths = [
+		file
+		for file in shapefile_paths
+		if file.exists()
+	]
+
+	if existing_paths:
+		if not replace:
+			warnings.warn(
+				f"Shapefile уже существует: {path}. "
+				f"Результат не сохранён.",
+				UserWarning,
+				stacklevel=2,
+			)
+			return
+
+		for file in existing_paths:
+			file.unlink()
+
 	with shapefile.Writer(
-			str(path),
-			shapeType=shapefile.POLYGON,
+		str(path),
+		shapeType=shapefile.POLYGON,
 	) as shp:
 		shp.field("NAME", "C")
 
@@ -56,8 +94,8 @@ def shape_polygon_save(
 			polygon = polygon * [1, -1]
 
 			if not np.array_equal(
-					polygon[0],
-					polygon[-1],
+				polygon[0],
+				polygon[-1],
 			):
 				polygon = np.vstack(
 					(polygon, polygon[0])
