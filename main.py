@@ -1,140 +1,95 @@
-import cv2
-import torch
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
-from rvm import HumanMatter
+import torch
 
+from torchvision import tv_tensors
+from torchvision.transforms import InterpolationMode
+from torchvision.transforms import v2 as transforms
 
-def main():
-    folder_images = Path(r"D:\Data\humanspine\dataset")
-    checkpoint_path = r"./rvm/model_checkpoint/rvm_resnet50.pth"
+from utils.manager_shapefile import label_load, mask_load
+from utils.sample import Sample
 
-    matter = HumanMatter(checkpoint_path, "cuda", threshold=0.75)
+def main() -> None:
+    folder_dataset = Path(r"D:\Data\humanspine\dataset")
+    folder_sample = folder_dataset / "3"
 
-    for person_folder in sorted(folder_images.iterdir()):
-        if not person_folder.is_dir():
-            continue
+    path_sample = {
+        "image": folder_sample / f"{folder_sample.name}_3.jpeg",
+        "mask": folder_sample / f"{folder_sample.name}_3_vectormask",
+        "label": folder_sample / f"{folder_sample.name}_3_vector",
+    }
 
-        # Например: папка 5 -> файл 5_3.jpeg
-        image_path = person_folder / f"{person_folder.name}_3.jpeg"
+    sample = Sample.load_sample(path_sample)
 
-        if not image_path.exists():
-            print(f"Файл не найден: {image_path}")
-            continue
+    rotate = transforms.RandomRotation(
+        # Строго +15 градусов.
+        degrees=(15, 15),
 
-        print(f"Обработка: {image_path}")
+        # Для изображения применяется bilinear.
+        # Для tv_tensors.Mask torchvision использует nearest.
+        interpolation=InterpolationMode.BILINEAR,
 
-        try:
-            run_rvm(str(image_path), matter)
-        except Exception as error:
-            print(f"Ошибка при обработке {image_path}: {error}")
+        fill={
+            tv_tensors.Image: 0,
+            tv_tensors.Mask: 0,
+        },
 
-
-def run_rvm(image_path: str, matter: HumanMatter):
-    # Загружаем изображение
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    height, width = image.shape[:2]
-
-    scale = 0.25
-
-    image_resized = cv2.resize(
-        image,
-        None,
-        fx=scale,
-        fy=scale,
-        interpolation=cv2.INTER_CUBIC
+        # Холст увеличивается, чтобы вместить всё изображение.
+        expand=True,
     )
 
-    mask = matter(image_resized)
+    # Один и тот же поворот применяется ко всему sample.
+    sample = rotate(sample)
+    sample = sample.to_numpy()
 
-    mask, bbox = mask_correction(mask, copy=False)
+    image_rotated = sample["image"]  # H x W x C
+    mask_rotated = sample["mask"]    # H x W
+    label_rotated = sample["label"]  # H x W
 
-    print(bbox)
+    # Удаляем фон по основной маске.
+    image_masked = image_rotated.copy()
+    image_masked[mask_rotated == 0] = 0
 
-    mask = cv2.resize(
-        mask,
-        (width, height),
-        interpolation=cv2.INTER_NEAREST,
+    # Создаём изображение с нанесённым лейблом.
+    image_with_label = image_masked.copy()
+
+    # Красным отмечаем пиксели ломаной линии.
+    image_with_label[label_rotated != 0] = (255, 0, 0)
+
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(18, 7),
     )
 
-    testmask(image, mask)
+    axes[0].imshow(image_with_label)
+    axes[0].set_title("Image + label: rotation +15°")
+    axes[0].axis("off")
 
-def mask_correction(
-    mask: np.ndarray,
-    copy: bool = False,
-) ->  tuple[np.ndarray, tuple]:
-    """
-    Оставляет только самый большой связный объект и заполняет его значением 255.
-
-    Если copy=False, исходный массив изменяется на месте.
-    Если copy=True, возвращается обработанная копия.
-    """
-    if mask.dtype != np.uint8:
-        raise TypeError(f"Ожидался uint8, получен {mask.dtype}")
-
-    if mask.ndim != 2:
-        raise ValueError(
-            f"Ожидалась одноканальная маска HxW, получена форма {mask.shape}"
-        )
-
-    mask = mask.copy() if copy else mask
-
-    contours, _ = cv2.findContours(
-        mask,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE,
+    axes[1].imshow(
+        mask_rotated,
+        cmap="gray",
+        vmin=0,
+        vmax=255,
     )
+    axes[1].set_title("Mask: rotation +15°")
+    axes[1].axis("off")
 
-    if not contours:
-        return mask
-
-    # Удаляем все объекты
-    mask.fill(0)
-
-
-
-    largest_contour = max(contours, key=cv2.contourArea)
-
-    # Рисуем только самый большой объект без дыр
-    cv2.drawContours(
-        mask,
-        [largest_contour],
-        contourIdx=-1,
-        color=255,
-        thickness=cv2.FILLED,
+    axes[2].imshow(
+        label_rotated,
+        cmap="gray",
+        vmin=0,
+        vmax=255,
     )
-
-    bbox = cv2.boundingRect(largest_contour)
-
-    return mask, bbox
-
-
-def testmask(image, mask):
-    image[mask == 0] = (0, 0, 0)
-
-    plt.figure(figsize=(10, 5))
-
-    plt.subplot(1, 2, 1)
-    plt.imshow(image)
-    plt.title("Image")
-    plt.axis("off")
-
-    plt.subplot(1, 2, 2)
-    plt.imshow(mask, cmap="gray")
-    plt.title("Alpha matte")
-    plt.axis("off")
+    axes[2].set_title("Label: rotation +15°")
+    axes[2].axis("off")
 
     plt.tight_layout()
-
-    plt.savefig(
-        "result.png",
-        dpi=300,
-        bbox_inches="tight"
-    )
-
     plt.show()
+
 
 if __name__ == "__main__":
     main()
