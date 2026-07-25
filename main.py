@@ -11,69 +11,7 @@ from torchvision.transforms import v2 as transforms
 from utils.tensor_inertia import vertical_deviation
 from utils.sample import Sample
 
-def sample_process(
-    sample: Sample,
-    etalon_area: int = 3_000_000,
-) -> tuple[Sample, float, float, float]:
-    """
-    Выравнивает главную ось маски по вертикали и приводит площадь
-    маски к заданному эталонному значению.
-
-    Returns
-    -------
-    processed_sample:
-        Повёрнутый и масштабированный сэмпл.
-
-    angle_before:
-        Исходное знаковое отклонение от вертикали.
-
-    angle_after:
-        Отклонение после обработки.
-
-    scale:
-        Применённый линейный коэффициент масштаба.
-    """
-
-    angle_before = float(
-        vertical_deviation(
-            sample["mask"],
-            normalize=True,
-            degrees=True,
-        ).detach().cpu().item()
-    )
-
-    # Если объект отклонён на angle_before,
-    # для исправления поворачиваем на противоположный угол.
-    correction_angle = -angle_before
-
-    processed_sample = Rotate(correction_angle)(sample)
-
-    # Площадь лучше считать после поворота:
-    # интерполяция и дискретизация могут немного её изменить.
-    area_after_rotation = int(
-        torch.count_nonzero(processed_sample["mask"]).item()
-    )
-
-    if area_after_rotation == 0:
-        raise ValueError(
-            "После поворота маска стала пустой"
-        )
-
-    # Scale изменяет линейные размеры.
-    # Площадь изменяется в scale ** 2 раз.
-    scale = np.sqrt(etalon_area / area_after_rotation)
-
-    processed_sample = Scale(scale)(processed_sample)
-
-    angle_after = float(
-        vertical_deviation(
-            processed_sample["mask"],
-            normalize=True,
-            degrees=True,
-        ).detach().cpu().item()
-    )
-
-    return processed_sample, angle_before, angle_after, float(scale)
+from utils.sample_transform import get_random_affine_sample, calculate_transform_limits
 
 
 def main() -> None:
@@ -91,91 +29,60 @@ def main() -> None:
         for paths in samples_paths
     ]
 
-    processed_samples: list[Sample] = []
-    angles_before: list[float] = []
-    angles_after: list[float] = []
-    scales: list[float] = []
+    transformed_samples: list[Sample] = []
+    samples = [sample.crop_to_mask() for sample in samples]
 
-    for sample_id, sample in zip(sample_ids, samples):
-        (
-            processed_sample,
-            angle_before,
-            angle_after,
-            scale,
-        ) = sample_process(
+    for sample in samples:
+        scale_range, angle_range = calculate_transform_limits(
             sample,
-            etalon_area=3_000_000,
+            scale_deviation=(0.7, 1.3),
+            angle_deviation=(-10.0, 10.0),
         )
 
-        processed_samples.append(processed_sample)
-        angles_before.append(angle_before)
-        angles_after.append(angle_after)
-        scales.append(scale)
-
-        final_area = torch.count_nonzero(
-            processed_sample["mask"]
-        ).item()
-
-        print(
-            f"Sample {sample_id}: "
-            f"angle_before={angle_before:.4f}°, "
-            f"angle_after={angle_after:.4f}°, "
-            f"scale={scale:.6f}, "
-            f"final_area={final_area}"
+        transformed_sample = get_random_affine_sample(
+            sample,
+            scale_range=scale_range,
+            angle_range=angle_range,
+            expand=True,
         )
+        transformed_samples.append(transformed_sample.to_numpy())
 
-    processed_samples_numpy = [
-        sample.to_numpy()
-        for sample in processed_samples
+    original_samples = [
+        Sample(dict(sample)).to_numpy()
+        for sample in samples
     ]
 
     images = [
         to_image(sample)
-        for sample in processed_samples_numpy
+        for sample in original_samples
+    ]
+
+    transformed_images = [
+        to_image(sample)
+        for sample in transformed_samples
     ]
 
     fig, axes = plt.subplots(
-        1,
-        len(images),
-        figsize=(7 * len(images), 7),
+        2,
+        len(sample_ids),
+        figsize=(5, 7),
         squeeze=False,
     )
 
-    axes = axes[0]
-
-    for (
-        ax,
-        image,
-        sample_id,
-        angle_before,
-        angle_after,
-        scale,
-    ) in zip(
-        axes,
-        images,
-        sample_ids,
-        angles_before,
-        angles_after,
-        scales,
-    ):
-        h, w = image.shape[:2]
-
-        ax.imshow(image)
-        ax.set_aspect("equal")
-        ax.set_title(
-            f"Sample {sample_id}\n"
-            f"angle: {angle_before:.2f}° → {angle_after:.2f}°\n"
-            f"scale: {scale:.4f}"
+    for index, sample_id in enumerate(sample_ids):
+        axes[0, index].imshow(images[index])
+        axes[0, index].set_title(
+            f"Sample {sample_id}: original"
         )
-        ax.axis("off")
+        axes[0, index].set_aspect("equal")
+        axes[0, index].axis("off")
 
-        # После исправления линия должна быть почти вертикальной.
-        draw_deviation_axis(
-            ax,
-            angle_after,
-            w,
-            h,
+        axes[1, index].imshow(transformed_images[index])
+        axes[1, index].set_title(
+            f"Sample {sample_id}: transformed"
         )
+        axes[1, index].set_aspect("equal")
+        axes[1, index].axis("off")
 
     plt.tight_layout()
     plt.show()
