@@ -12,60 +12,6 @@ from utils.tensor_inertia import vertical_deviation
 from utils.sample import Sample
 
 
-class Rotate:
-    def __init__(self, angle: float) -> None:
-        """
-        angle:
-            Угол поворота torchvision в градусах.
-
-            Положительный — против часовой стрелки.
-            Отрицательный — по часовой стрелке.
-        """
-        self.angle = float(angle)
-
-    def __call__(self, sample: Sample) -> Sample:
-        rotate = transforms.RandomRotation(
-            degrees=(self.angle, self.angle),
-            interpolation=InterpolationMode.BILINEAR,
-            expand=True,
-            fill={
-                tv_tensors.Image: 0,
-                tv_tensors.Mask: 0,
-            },
-        )
-
-        rotated = rotate(dict(sample))
-
-        return Sample(rotated)
-
-
-class Scale:
-    def __init__(self, scale: float) -> None:
-        if scale <= 0:
-            raise ValueError(
-                f"scale должен быть больше 0, получено {scale}"
-            )
-
-        self.scale = float(scale)
-
-    def __call__(self, sample: Sample) -> Sample:
-        height, width = sample["image"].shape[-2:]
-
-        new_size = (
-            max(1, round(height * self.scale)),
-            max(1, round(width * self.scale)),
-        )
-
-        resize = transforms.Resize(
-            size=new_size,
-            interpolation=InterpolationMode.BILINEAR,
-            antialias=True,
-        )
-
-        resized = resize(dict(sample))
-
-        return Sample(resized)
-
 def calculate_normalization_parameters(
     sample: Sample,
     target_area: int = 3_000_000,
