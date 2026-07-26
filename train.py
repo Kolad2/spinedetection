@@ -1,19 +1,19 @@
 import cv2
 from pathlib import Path
-from utils import Dataset
+from unet.utils import Dataset
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 from torch import nn
-from trainer import Trainer
-from adapter import NumpyAdapter
-from cropper import Cropper
+from unet.trainer import Trainer
+from unet.adapter import NumpyAdapter
+from unet.cropper import Cropper
 
 def train():
 
     device = "cuda"
-    path_dataset = Path(r"D:\Data\dataset.lst")
+    path_dataset = Path(r".test\dataset.lst")
 
     dataset = Dataset(
         path_dataset
