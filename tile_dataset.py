@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from torchvision import tv_tensors
 from torchvision.transforms import InterpolationMode
@@ -19,11 +20,6 @@ from utils.sample_transform import horizontal_flip
 
 def main() -> None:
     folder_rawdataset = Path(r"D:\Data\humanspine\dataset")
-
-    sample_ids = [3, 76, 7]
-
-    samples_path = [folder_rawdataset / str(sample_id) for sample_id in sample_ids]
-
     folder_train_dataset = Path(r"./test")
     path_lst = folder_train_dataset / "train.lst"
 
@@ -33,7 +29,7 @@ def main() -> None:
     )
 
     with path_lst.open("w", encoding="utf-8") as lst:
-        for sample_path in samples_path:
+        for sample_path in tqdm(folder_rawdataset.iterdir()):
             sample_name = sample_path.name
             image_tile_folder = folder_train_dataset / sample_name
             image_tile_folder.mkdir(parents=False, exist_ok=True)
