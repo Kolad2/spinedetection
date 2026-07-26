@@ -10,6 +10,16 @@ from torchvision.transforms import v2 as transforms
 from utils.sample import Sample
 
 
+def horizontal_flip(sample: Sample) -> Sample:
+    """
+    Отражает по горизонтали все поля Sample:
+    image, mask и label.
+    """
+    return Sample({
+        name: F.horizontal_flip(tensor)
+        for name, tensor in sample.items()
+    })
+
 class Rotate:
     def __init__(self, angle: float) -> None:
         """
@@ -256,7 +266,7 @@ def get_random_affine_sample(
     scale_range: tuple[float, float],
     angle_range: tuple[float, float],
     expand: bool = True,
-) -> Sample:
+) -> tuple[Sample, float, float]:
     """
     Случайно поворачивает и масштабирует сэмпл.
 
@@ -306,7 +316,7 @@ def get_random_affine_sample(
         expand=expand,
     )(sample)
 
-    return transformed_sample
+    return transformed_sample, scale, angle
 
 
 def random_uniform(

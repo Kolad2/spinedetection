@@ -94,15 +94,5 @@ def sample_paths_from_folder(
         "label": folder_sample / f"{folder_sample.name}_3_vector",
     }
 
-
-def to_image(sample: dict) -> np.ndarray:
-    image = sample["image"].copy()
-
-    image[sample["mask"] == 0] = 0
-    image[sample["label"] == 255] = 255
-
-    return image
-
-
 if __name__ == "__main__":
     main()
