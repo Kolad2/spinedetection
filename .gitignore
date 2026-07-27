@@ -1,5 +1,6 @@
 rvm/model_checkpoint/*
 test/*
+config.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
