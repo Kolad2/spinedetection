@@ -10,6 +10,7 @@ from torch import nn
 from unet.trainer import Trainer
 from unet.adapter import NumpyAdapter
 from unet.cropper import Cropper
+from validate import validate
 
 def train():
     path_config = Path("config.toml")
@@ -55,48 +56,15 @@ def train():
     epochs = 100
 
     # начальное состояние модели
-    save_test_images(model, folder_validation, train_test_folder, 0)
+    validate(model, folder_validation, train_test_folder, 0)
     for epoch in range(1, epochs + 1):
         print(f"\nEpoch {epoch}/{epochs}")
         trainer.train()
-        save_test_images(model, folder_validation, train_test_folder, epoch)
+        validate(model, folder_validation, train_test_folder, epoch)
         torch.save(
             model.state_dict(),
-            f"train_models_test/model_epoch_{epoch:03d}.pth"
+            f"train_models/model_epoch_{epoch:03d}.pth"
         )
-
-
-def save_test_images(model, test_image_folder: Path, train_test_folder: Path, epoch: int = 0):
-    for _path in test_image_folder.iterdir():
-        path_image = _path / (_path.name + "_3.jpeg")
-        print(path_image)
-        epoch_folder = train_test_folder / Path(r"epoch_" + str(epoch))
-        epoch_folder.mkdir(parents=False, exist_ok=True)
-        save_image_test(model, path_image, save_folder=epoch_folder)
-
-def save_image_test(model, image_path: Path, save_folder=None):
-    save_folder = "train_test" if save_folder is None else str(save_folder)
-
-    model.eval()
-
-    image = cv2.imread(str(image_path))
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    model = NumpyAdapter(model)
-    model = Cropper(model, 512, 64, display=True)
-    result = model(image)
-
-    fig = plt.figure(figsize=(10, 4))
-    axs = [
-        fig.add_subplot(1, 2, 1),
-        fig.add_subplot(1, 2, 2)
-    ]
-
-    axs[0].imshow(image)
-    axs[1].imshow(result, cmap="gray")
-    # plt.show()
-    fig.savefig(save_folder + "/" + image_path.name)
-    plt.close(fig)
 
 
 def load_resnet_imagenet_encoder():

@@ -1,6 +1,8 @@
 rvm/model_checkpoint/*
 test/*
 config.toml
+train_validation/*
+train_models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

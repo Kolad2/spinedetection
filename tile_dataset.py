@@ -29,7 +29,7 @@ def main() -> None:
     path_lst = Path(config["dataset_lst"])
 
     tiler = Tiler(
-        size=(1024, 1024),
+        size=(512, 512),
         stride=(512, 512),
     )
 

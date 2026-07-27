@@ -10,32 +10,47 @@ from torch import nn
 from unet.trainer import Trainer
 from unet.adapter import NumpyAdapter
 from unet.cropper import Cropper
+from utils.manager_shapefile import mask_load
 
 
 def main():
     with open(r"config.json", 'r', encoding='utf-8') as file:
         config = json.load(file)  # <- загрузка из файла
-    test_image_folder = Path(r".\test_images\outcrop")
-    train_test_folder = Path(r".\train_test")
+    folder_validation = Path(r".\test_images\outcrop")
+    folder_save = Path(r".\train_validation")
+    validate(model, folder_validation, folder_save)
 
 
 
 def validate(model, folder_validation: Path, folder_save: Path, epoch: int = 0):
     for _path in folder_validation.iterdir():
-        path_image = _path / (_path.name + ".png")
+        path_image = _path / (_path.name + "_3.jpeg")
+        path_mask = _path / (_path.name + "_3_vectormask")
         print(path_image)
         epoch_folder = folder_save / Path(r"epoch_" + str(epoch))
         epoch_folder.mkdir(parents=False, exist_ok=True)
-        save_image_test(model, path_image, save_folder=epoch_folder)
+        save_image_test(model, path_image, path_mask=path_mask, save_folder=epoch_folder)
 
 
-def save_image_test(model, image_path: Path, save_folder=None):
+def save_image_test(model, image_path: Path, path_mask=None, save_folder=None):
     save_folder = "train_test" if save_folder is None else str(save_folder)
 
     model.eval()
 
     image = cv2.imread(str(image_path))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    height, width = image.shape[:2]
+
+    image = cv2.resize(image,None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+    if path_mask is not None:
+        mask = mask_load(path_mask, (height, width))
+        resized_height, resized_width = image.shape[:2]
+        mask = cv2.resize(
+            mask,
+            (resized_width, resized_height),
+            interpolation=cv2.INTER_NEAREST,
+        )
+        image[mask==0] = 0
 
     model = NumpyAdapter(model)
     model = Cropper(model, 512, 64, display=True)
