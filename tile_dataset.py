@@ -25,12 +25,12 @@ def main() -> None:
         config = tomllib.load(file)
     folder_rawdataset = Path(config["rawdataset"])
 
-    folder_train_dataset = Path(r"./test")
-    path_lst = folder_train_dataset / "train.lst"
+    folder_train_dataset = Path(config["dataset"])
+    path_lst = Path(config["dataset_lst"])
 
     tiler = Tiler(
-        size=(512, 512),
-        stride=(256, 512),
+        size=(1024, 1024),
+        stride=(512, 512),
     )
 
     with path_lst.open("w", encoding="utf-8") as lst:
@@ -46,20 +46,26 @@ def main() -> None:
 def sample_processing(
     sample: Sample, tiler: Tiler, save_folder, lst
 ):
-    suffix = f"original"
-    tile_sample(sample, tiler, save_folder, suffix, lst)
-
     scale_range, angle_range = calculate_transform_limits(
         sample,
-        scale_deviation=(0.7, 1.3),
+        scale_deviation=(0.8, 1.1),
         angle_deviation=(-10.0, 10.0),
     )
+    scale_range = (scale_range[0]*0.5, scale_range[1]*0.5)
+
     for i in range(6):
         transformed_sample, scale, angle = get_random_affine_sample(
             sample,
             scale_range=scale_range,
             angle_range=angle_range,
             expand=True,
+        )
+        mask = transformed_sample["mask"] != 0  # (H, W), bool
+        image = transformed_sample["image"]  # (C, H, W)
+
+        transformed_sample["image"] = image.masked_fill(
+            ~mask.unsqueeze(0),
+            0,
         )
         suffix = f"{scale:.2f}_{angle:.2f}"
         tile_sample(transformed_sample, tiler, save_folder, suffix, lst)
