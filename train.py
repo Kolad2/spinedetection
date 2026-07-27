@@ -1,4 +1,5 @@
 import cv2
+import json
 from pathlib import Path
 from unet.utils import Dataset
 import matplotlib.pyplot as plt
@@ -11,21 +12,20 @@ from unet.adapter import NumpyAdapter
 from unet.cropper import Cropper
 
 def train():
+    with open(r"config.json", 'r', encoding='utf-8') as file:
+        config = json.load(file)  # <- загрузка из файла
+
 
     device = "cuda"
-    path_dataset = Path(r".test\dataset.lst")
+    path_dataset = config["dataset"]
 
     dataset = Dataset(
         path_dataset
     )
 
-    loader = DataLoader(
-        dataset,
-        batch_size=8,
-        shuffle=True,
-        num_workers=4,
-        pin_memory=True
-    )
+    batch_size = 1
+    num_workers = 4
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
 
     model = smp.UnetPlusPlus(
         encoder_name="resnet34",
@@ -34,7 +34,7 @@ def train():
         classes=1
     )
 
-    state_dict = torch.load("saved_models/encoder_resnet34_channels3_depth5.pth", map_location=device)
+    state_dict = torch.load(r"saved_models/encoder_resnet34_channels3_depth5.pth", map_location=device)
     model = model.to(device)
 
     model.encoder.load_state_dict(state_dict)
@@ -44,23 +44,21 @@ def train():
         weight_decay=1e-4
     )
 
-    batch_size = 1
-    num_workers = 4
-    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+
     trainer = Trainer(model, dataloader, optimizer, device)
 
 
-    test_image_folder = Path(r".\test_images\outcrop")
+    folder_validation = config["validation"]
     train_test_folder = Path(r".\train_test")
 
     epochs = 100
 
     # начальное состояние модели
-    save_test_images(model, test_image_folder, train_test_folder, 0)
+    save_test_images(model, folder_validation, train_test_folder, 0)
     for epoch in range(1, epochs + 1):
         print(f"\nEpoch {epoch}/{epochs}")
         trainer.train()
-        save_test_images(model, test_image_folder, train_test_folder, epoch)
+        save_test_images(model, folder_validation, train_test_folder, epoch)
         torch.save(
             model.state_dict(),
             f"train_models_test/model_epoch_{epoch:03d}.pth"

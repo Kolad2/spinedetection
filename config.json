@@ -1,0 +1,4 @@
+{
+  "dataset": ".\test\train.lst",
+  "validation": ".\test\train.lst"
+}
