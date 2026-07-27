@@ -1,0 +1,3 @@
+rawdataset = 'D:\Data\humanspine\dataset'
+dataset = '.\test\train.lst'
+validation = '.\test\train.lst'

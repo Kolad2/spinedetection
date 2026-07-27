@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,13 +20,18 @@ from utils.sample_transform import get_random_affine_sample, calculate_transform
 from utils.sample_transform import horizontal_flip
 
 def main() -> None:
-    folder_rawdataset = Path(r"D:\Data\humanspine\dataset")
+    path_config = Path("config.toml")
+    with path_config.open("rb") as file:
+        config = tomllib.load(file)
+
+    folder_rawdataset = Path(config["rawdataset"])
+
     folder_train_dataset = Path(r"./test")
     path_lst = folder_train_dataset / "train.lst"
 
     tiler = Tiler(
-        size=(1024, 1024),
-        stride=(512, 512),
+        size=(512, 512),
+        stride=(256, 512),
     )
 
     with path_lst.open("w", encoding="utf-8") as lst:
