@@ -1,7 +1,7 @@
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from utils.functional import cross_entropy_loss_with_logits
+from .utils.functional import cross_entropy_loss_with_logits
 
 
 class Trainer:
