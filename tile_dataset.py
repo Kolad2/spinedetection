@@ -23,7 +23,6 @@ def main() -> None:
     path_config = Path("config.toml")
     with path_config.open("rb") as file:
         config = tomllib.load(file)
-
     folder_rawdataset = Path(config["rawdataset"])
 
     folder_train_dataset = Path(r"./test")

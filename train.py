@@ -1,5 +1,5 @@
 import cv2
-import json
+import tomllib
 from pathlib import Path
 from unet.utils import Dataset
 import matplotlib.pyplot as plt
@@ -12,12 +12,13 @@ from unet.adapter import NumpyAdapter
 from unet.cropper import Cropper
 
 def train():
-    with open(r"config.json", 'r', encoding='utf-8') as file:
-        config = json.load(file)  # <- загрузка из файла
+    path_config = Path("config.toml")
+    with path_config.open("rb") as file:
+        config = tomllib.load(file)
 
 
     device = "cuda"
-    path_dataset = config["dataset"]
+    path_dataset = Path(config["dataset_lst"])
 
     dataset = Dataset(
         path_dataset
@@ -48,8 +49,8 @@ def train():
     trainer = Trainer(model, dataloader, optimizer, device)
 
 
-    folder_validation = config["validation"]
-    train_test_folder = Path(r".\train_test")
+    folder_validation = Path(config["validation"])
+    train_test_folder = Path(r".\train_validation")
 
     epochs = 100
 
@@ -67,7 +68,7 @@ def train():
 
 def save_test_images(model, test_image_folder: Path, train_test_folder: Path, epoch: int = 0):
     for _path in test_image_folder.iterdir():
-        path_image = _path / (_path.name + ".png")
+        path_image = _path / (_path.name + "_3.jpeg")
         print(path_image)
         epoch_folder = train_test_folder / Path(r"epoch_" + str(epoch))
         epoch_folder.mkdir(parents=False, exist_ok=True)
