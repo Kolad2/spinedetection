@@ -16,8 +16,27 @@ from utils.manager_shapefile import mask_load
 def main():
     with open(r"config.json", 'r', encoding='utf-8') as file:
         config = json.load(file)  # <- загрузка из файла
-    folder_validation = Path(r".\test_images\outcrop")
+    folder_validation = Path(config["validation"])
     folder_save = Path(r".\train_validation")
+    path_checkpoint = Path(r".\saved_models")
+    device = "cuda"
+
+    model = smp.UnetPlusPlus(
+        encoder_name="resnet34",
+        encoder_weights=None,  # можно None, т.к. веса будут перезаписаны
+        in_channels=3,
+        classes=1,
+    )
+
+    checkpoint = torch.load(
+        path_checkpoint,
+        map_location=device,
+        weights_only=True,  # если PyTorch >= 2.0
+    )
+
+    model.load_state_dict(checkpoint)
+    model = model.to(device)
+
     validate(model, folder_validation, folder_save)
 
 
